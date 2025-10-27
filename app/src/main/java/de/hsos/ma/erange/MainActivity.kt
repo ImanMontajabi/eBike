@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -225,7 +227,7 @@ fun DropDownSelection(
 }
 
 @Composable
-fun Header() {
+fun ERangeHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -240,7 +242,27 @@ fun Header() {
     }
 }
 
+@Composable
+fun HeaderIcon(modifier: Modifier = Modifier) {
+    val imagePointer = painterResource(id = R.drawable.bicycle)
+    Row (
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Image(
+            painter =imagePointer,
+            contentDescription = "App Header Logo",
+            modifier = modifier.size(144.dp)
+        )
+    }
+}
 
+@Composable
+fun ERangeInfo() {
+
+}
 
 @Composable
 fun ERange(
@@ -252,7 +274,9 @@ fun ERange(
 ) {
     val output = rememberSaveable { mutableStateOf("") }
     Column(modifier.padding(10.dp)) {
-        Header()
+        ERangeHeader()
+        Spacer(Modifier.requiredHeight(10.dp))
+        HeaderIcon()
         Spacer(Modifier.requiredHeight(10.dp))
         InputBox("Your weight [kg]: ", txt = weight)
         Spacer(Modifier.requiredHeight(10.dp))
@@ -265,6 +289,7 @@ fun ERange(
         SwitchBox("Flat tour profile: ", isFlatTourProfile = isFlatTourProfile)
         Spacer(Modifier.requiredHeight(10.dp))
         CalculateButton(weight, selectedCapacityIndex, isFlatTourProfile, output)
+        // TODO: Replace this with RoundedOutputWindow()
         if (output.value.isNotEmpty()) {
             Text(
                 output.value,
