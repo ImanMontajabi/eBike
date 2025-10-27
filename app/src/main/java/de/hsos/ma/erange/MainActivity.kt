@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,8 +13,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -38,13 +45,17 @@ class MainActivity : ComponentActivity() {
             val weight = rememberSaveable { mutableStateOf("80") }
             val capacity = rememberSaveable { mutableStateOf("670") }
             val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
+            val selectedCapacityIndex = rememberSaveable { mutableStateOf(0) }
+            val isDropDownExpanded = rememberSaveable { mutableStateOf(false) }
             ERangeTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     ERange(
                         modifier = Modifier.padding(innerPadding),
                         weight = weight,
                         capacity = capacity,
-                        isFlatTourProfile = isFlatTourProfile
+                        isFlatTourProfile = isFlatTourProfile,
+                        selectedCapacityIndex = selectedCapacityIndex,
+                        isDropDownExpanded = isDropDownExpanded
                     )
                 }
             }
@@ -93,11 +104,14 @@ fun CalculateButton(
     weight: MutableState<String>,
     capacity: MutableState<String>,
     output: MutableState<String>) {
+    val capacities = listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")
+
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
         Button(
             onClick = {
                 val w = weight.value.toDoubleOrNull() ?: 0.0
-                val c = capacity.value.toDoubleOrNull() ?: 0.0
+                val capacityStr = capacities[selectedCapacityIndex.value].replace(" Wh", "")
+                val c = capacityStr.toDoubleOrNull() ?: 0.0
                 val r = range(w, c, true)
                 output.value = "Range is: %.1f km".format(r)
         },
@@ -141,13 +155,93 @@ fun SwitchBox(title: String, isFlatTourProfile: MutableState<Boolean>) {
 }
 
 @Composable
-fun ERange(modifier: Modifier, weight: MutableState<String>, capacity: MutableState<String>, isFlatTourProfile: MutableState<Boolean>) {
+fun DropDownSelection(
+    title: String,
+    itemPosition: MutableState<Int>,
+    isDropDownExpanded: MutableState<Boolean>
+) {
+    val capacities = listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")
+
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                Modifier
+                    .padding(10.dp, 2.dp, 4.dp, 0.dp)
+                    .weight(2F),
+                horizontalAlignment = Alignment.End
+            ) {
+               Text(
+                   title,
+                   style = MaterialTheme.typography.titleLarge,
+                   color = MaterialTheme.colorScheme.onBackground
+               )
+            }
+            Column(
+                Modifier
+                    .padding(4.dp, 0.dp, 12.dp, 0.dp)
+                    .weight(3f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isDropDownExpanded.value = true }
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = capacities[itemPosition.value],
+                        style = MaterialTheme.typography.headlineMedium
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowDown,
+                        modifier = Modifier.size(36.dp),
+                        contentDescription = "Show options"
+                    )
+            }
+                DropdownMenu(
+                    expanded = isDropDownExpanded.value,
+                    onDismissRequest = { isDropDownExpanded.value = false }
+                ) {
+                    capacities.forEachIndexed {index, capacity -> DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = capacity,
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        },
+                        onClick = {
+                            isDropDownExpanded.value = false
+                            itemPosition.value = index
+                        }
+                    )
+                    }
+                }
+            }
+    }
+}
+
+@Composable
+fun ERange(
+    modifier: Modifier,
+    weight: MutableState<String>,
+    capacity: MutableState<String>,
+    isFlatTourProfile: MutableState<Boolean>,
+    selectedCapacityIndex: MutableState<Int>,
+    isDropDownExpanded: MutableState<Boolean>
+) {
     val output = rememberSaveable { mutableStateOf("") }
     Column(modifier.padding(10.dp))
     {
         InputBox("Your weight [kg]: ", txt = weight)
         Spacer(Modifier.requiredHeight(10.dp))
-        InputBox("Battery capacity [Wh]: ", txt = capacity)
+        DropDownSelection(
+            "Battery capacity [Wh]: ",
+            itemPosition = selectedCapacityIndex,
+            isDropDownExpanded = isDropDownExpanded
+        )
         Spacer(Modifier.requiredHeight(10.dp))
         SwitchBox("Flat tour profile: ", isFlatTourProfile = isFlatTourProfile)
         Spacer(Modifier.requiredHeight(10.dp))
@@ -179,8 +273,17 @@ fun ERangePreview() {
     val capacity = rememberSaveable { mutableStateOf("670")}
     val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
     val modifier = Modifier
+    val isDropDownExpanded = rememberSaveable { mutableStateOf(false) }
+    val selectedCapacityIndex = rememberSaveable { mutableStateOf(0) }
     ERangeTheme {
-        ERange(modifier, weight, capacity, isFlatTourProfile)
+        ERange(
+            modifier,
+            weight,
+            capacity,
+            isFlatTourProfile,
+            selectedCapacityIndex,
+            isDropDownExpanded
+        )
     }
 }
 
