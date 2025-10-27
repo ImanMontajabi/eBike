@@ -17,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
@@ -36,13 +37,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             val weight = rememberSaveable { mutableStateOf("80") }
             val capacity = rememberSaveable { mutableStateOf("670") }
-            val isFlatTourProfile = rememberSaveable { mutableStateOf }
+            val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
             ERangeTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     ERange(
                         modifier = Modifier.padding(innerPadding),
                         weight = weight,
-                        capacity = capacity
+                        capacity = capacity,
+                        isFlatTourProfile = isFlatTourProfile
                     )
                 }
             }
@@ -111,13 +113,43 @@ fun CalculateButton(
 }
 
 @Composable
-fun ERange(modifier: Modifier, weight: MutableState<String>, capacity: MutableState<String>) {
+fun SwitchBox(title: String, isFlatTourProfile: MutableState<Boolean>) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            Modifier
+                .padding(10.dp, 2.dp, 4.dp, 0.dp)
+                .weight(2F),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+        Switch(checked = isFlatTourProfile.value, onCheckedChange = {
+            isFlatTourProfile.value = it
+        },
+            modifier = Modifier
+                .padding(4.dp, 0.dp, 12.dp, 0.dp)
+                .weight(3f)
+            )
+    }
+}
+
+@Composable
+fun ERange(modifier: Modifier, weight: MutableState<String>, capacity: MutableState<String>, isFlatTourProfile: MutableState<Boolean>) {
     val output = rememberSaveable { mutableStateOf("") }
     Column(modifier.padding(10.dp))
     {
         InputBox("Your weight [kg]: ", txt = weight)
         Spacer(Modifier.requiredHeight(10.dp))
         InputBox("Battery capacity [Wh]: ", txt = capacity)
+        Spacer(Modifier.requiredHeight(10.dp))
+        SwitchBox("Flat tour profile: ", isFlatTourProfile = isFlatTourProfile)
         Spacer(Modifier.requiredHeight(10.dp))
         CalculateButton(weight, capacity, output)
         if (output.value.isNotEmpty()) {
@@ -145,9 +177,10 @@ fun range(weight: Double, capacity: Double, isFlat: Boolean): Double {
 fun ERangePreview() {
     val weight = rememberSaveable { mutableStateOf("80") }
     val capacity = rememberSaveable { mutableStateOf("670")}
+    val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
     val modifier = Modifier
     ERangeTheme {
-        ERange(modifier, weight, capacity)
+        ERange(modifier, weight, capacity, isFlatTourProfile)
     }
 }
 
