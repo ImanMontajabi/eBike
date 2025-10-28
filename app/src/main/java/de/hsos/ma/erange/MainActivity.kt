@@ -142,7 +142,6 @@ fun CalculateButton(
 ) {
     val capacities = listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")
 
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
         Button(
             onClick = {
                 val w = weight.value.toDoubleOrNull() ?: 0.0
@@ -161,7 +160,6 @@ fun CalculateButton(
             )
         }
     }
-}
 
 @Composable
 fun SwitchBox(title: String, isFlatTourProfile: MutableState<Boolean>) {
