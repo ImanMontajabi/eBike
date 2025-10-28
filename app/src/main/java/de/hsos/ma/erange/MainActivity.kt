@@ -19,6 +19,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -36,8 +38,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import de.hsos.ma.erange.ui.theme.ERangeTheme
 
 class MainActivity : ComponentActivity() {
@@ -45,19 +55,45 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val weight = rememberSaveable { mutableStateOf("80") }
-            val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
-            val selectedCapacityIndex = rememberSaveable { mutableStateOf(0) }
-            val isDropDownExpanded = rememberSaveable { mutableStateOf(false) }
             ERangeTheme {
+                val navController = rememberNavController()
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ERange(
-                        modifier = Modifier.padding(innerPadding),
-                        weight = weight,
-                        isFlatTourProfile = isFlatTourProfile,
-                        selectedCapacityIndex = selectedCapacityIndex,
-                        isDropDownExpanded = isDropDownExpanded
-                    )
+                    NavHost(
+                        navController = navController,
+                        startDestination = "home",
+                        modifier = Modifier.padding(innerPadding)
+                    ) {
+                        composable("home") {
+                            ERange(
+                                modifier = Modifier,
+                                navController = navController
+                            )
+                        }
+
+                        composable("info") {
+                            ERangeInfo(
+                                navController = navController,
+                                modifier = Modifier
+                            )
+                        }
+
+                        composable(
+                            route = "result/{rangeResult}",
+                            arguments = listOf(navArgument("rangeResult") {
+                                type = NavType.StringType
+                                nullable = true
+                            })
+                        ) { backStackEntry ->
+                            val result = backStackEntry.arguments?.getString("rangeResult")
+
+                            ResultScreen(
+                                navController = navController,
+                                rangeResult = result,
+                                modifier = Modifier
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -102,7 +138,7 @@ fun CalculateButton(
     weight: MutableState<String>,
     selectedCapacityIndex: MutableState<Int>,
     isFlatTourProfile: MutableState<Boolean>,
-    output: MutableState<String>
+    navController: NavController
 ) {
     val capacities = listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")
 
@@ -113,7 +149,8 @@ fun CalculateButton(
                 val capacityStr = capacities[selectedCapacityIndex.value].replace(" Wh", "")
                 val c = capacityStr.toDoubleOrNull() ?: 0.0
                 val r = range(w, c, isFlatTourProfile.value)
-                output.value = "Range is: %.1f km".format(r)
+                val resultString = "Your range (weight = $w, capacity = $c, flat = ${isFlatTourProfile.value}) is: %.3f km.".format(r)
+                navController.navigate("result/${resultString.replace("/", "-")}")
             },
             modifier = Modifier.padding(10.dp)
         ) {
@@ -226,57 +263,109 @@ fun DropDownSelection(
     }
 }
 
+
 @Composable
-fun ERangeHeader() {
-    Row(
+fun AppHeader() {
+    val imagePrinter = painterResource(id = R.drawable.bicycle)
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = stringResource(id = R.string.app_name),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.primary
         )
-    }
-}
-
-@Composable
-fun HeaderIcon(modifier: Modifier = Modifier) {
-    val imagePointer = painterResource(id = R.drawable.bicycle)
-    Row (
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.Center
-    ) {
+        Spacer(Modifier.requiredHeight(10.dp))
         Image(
-            painter =imagePointer,
-            contentDescription = "App Header Logo",
-            modifier = modifier.size(144.dp)
+            painter = imagePrinter,
+            contentDescription = stringResource(R.string.app_name) + " icon",
+            modifier = Modifier.size(120.dp)
         )
     }
 }
 
 @Composable
-fun ERangeInfo() {
+fun RoundedOutputWindow(output: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Text(
+            text = output,
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
 
+@Composable
+fun BackToHomeButton(navController: NavController) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+        Button(
+            onClick = { navController.popBackStack() },
+            modifier = Modifier.padding((16.dp))
+        ) {
+            Text("Back")
+        }
+    }
+}
+
+@Composable
+fun ERangeInfo(navController: NavController, modifier: Modifier = Modifier) {
+    val output = "Diese App berechnet die ungefähre Reichweite Ihres E-Bikes basierend auf bla bla bla"
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        AppHeader()
+        Spacer(Modifier.requiredHeight(40.dp))
+        RoundedOutputWindow(output = output)
+        Spacer(Modifier.requiredHeight(10.dp))
+        BackToHomeButton(navController = navController)
+    }
+}
+
+@Composable
+fun ResultScreen(
+    navController: NavController,
+    rangeResult: String?,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        AppHeader()
+        Spacer(Modifier.requiredHeight(40.dp))
+        RoundedOutputWindow(output = rangeResult ?: "No result calculated")
+        Spacer(Modifier.requiredHeight(10.dp))
+        BackToHomeButton(navController = navController)
+    }
 }
 
 @Composable
 fun ERange(
     modifier: Modifier = Modifier,
-    weight: MutableState<String>,
-    isFlatTourProfile: MutableState<Boolean>,
-    selectedCapacityIndex: MutableState<Int>,
-    isDropDownExpanded: MutableState<Boolean>
+    navController: NavController,
 ) {
-    val output = rememberSaveable { mutableStateOf("") }
+    val weight = rememberSaveable { mutableStateOf("80") }
+    val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
+    val selectedCapacityIndex = rememberSaveable { mutableStateOf(0) }
+    val isDropDownExpanded = rememberSaveable { mutableStateOf(false) }
+
     Column(modifier.padding(10.dp)) {
-        ERangeHeader()
+        AppHeader()
         Spacer(Modifier.requiredHeight(10.dp))
-        HeaderIcon()
         Spacer(Modifier.requiredHeight(10.dp))
         InputBox("Your weight [kg]: ", txt = weight)
         Spacer(Modifier.requiredHeight(10.dp))
@@ -288,42 +377,52 @@ fun ERange(
         Spacer(Modifier.requiredHeight(10.dp))
         SwitchBox("Flat tour profile: ", isFlatTourProfile = isFlatTourProfile)
         Spacer(Modifier.requiredHeight(10.dp))
-        CalculateButton(weight, selectedCapacityIndex, isFlatTourProfile, output)
-        // TODO: Replace this with RoundedOutputWindow()
-        if (output.value.isNotEmpty()) {
-            Text(
-                output.value,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(8.dp)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CalculateButton(
+                weight,
+                selectedCapacityIndex,
+                isFlatTourProfile,
+                navController
             )
+
+            Button(
+                onClick = {
+                    navController.navigate("info")
+                },
+                modifier = Modifier.padding(10.dp)
+            ) {
+                Text(
+                    "Info",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.inversePrimary
+                )
+            }
         }
     }
 }
 
 fun range(weight: Double, capacity: Double, isFlat: Boolean): Double {
-    val consumption = 7.0 // Wh per km
-    val normWeight = 80.0 // kg
+    val consumption = 7.0
+    val normWeight = 80.0
     var range = (capacity / consumption * (normWeight / weight))
     range = range / 2.0
-    if (!isFlat) range *= 0.7 // penalty mountainous
+    if (!isFlat) range *= 0.7
     return range
 }
 
 @Preview(showBackground = true)
 @Composable
 fun ERangePreview() {
-    val weight = rememberSaveable { mutableStateOf("80") }
-    val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
-    val isDropDownExpanded = rememberSaveable { mutableStateOf(false) }
-    val selectedCapacityIndex = rememberSaveable { mutableStateOf(0) }
+    val navController = rememberNavController()
     ERangeTheme {
         ERange(
-            Modifier,
-            weight,
-            isFlatTourProfile,
-            selectedCapacityIndex,
-            isDropDownExpanded
+            modifier = Modifier,
+            navController = navController
         )
     }
 }
