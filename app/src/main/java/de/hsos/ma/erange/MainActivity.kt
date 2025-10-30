@@ -31,6 +31,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -42,15 +43,31 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import de.hsos.ma.erange.ui.theme.ERangeTheme
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -58,7 +75,76 @@ class MainActivity : ComponentActivity() {
             ERangeTheme {
                 val navController = rememberNavController()
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                var menuExpanded by remember { mutableStateOf(false) }
+
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+
+                    topBar = {
+                        CenterAlignedTopAppBar(
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                titleContentColor = MaterialTheme.colorScheme.primary,
+                            ),
+                            title = {
+                                Text(stringResource(id = R.string.app_name))
+                            },
+                            navigationIcon = {
+                                IconButton(onClick = { navController.popBackStack() }) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back"
+                                    )
+                                }
+                            },
+                            actions = {
+                                IconButton(onClick = { menuExpanded = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Menu,
+                                        contentDescription = "Menu"
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = menuExpanded,
+                                    onDismissRequest = { menuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Berechnen") },
+                                        onClick = {
+                                            navController.navigate("home")
+                                            menuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Info") },
+                                        onClick = {
+                                            navController.navigate("info")
+                                            menuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        )
+                    },
+                    bottomBar = {
+                        BottomAppBar(
+                            actions = {
+                                IconButton(onClick = { navController.navigate("home") }) {
+                                    Icon(
+                                        Icons.Filled.PlayArrow,
+                                        contentDescription = "Calculate",
+                                    )
+                                }
+                                IconButton(onClick = { navController.navigate("info") }) {
+                                    Icon(
+                                        Icons.Filled.Info,
+                                        contentDescription = "App Info",
+                                    )
+                                }
+                            }
+                        )
+                    }
+                ) { innerPadding ->
                     NavHost(
                         navController = navController,
                         startDestination = "home",
@@ -70,7 +156,6 @@ class MainActivity : ComponentActivity() {
                                 navController = navController
                             )
                         }
-
                         composable("info") {
                             ERangeInfo(
                                 navController = navController,
@@ -141,7 +226,6 @@ fun CalculateButton(
     navController: NavController
 ) {
     val capacities = listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")
-
         Button(
             onClick = {
                 val w = weight.value.toDoubleOrNull() ?: 0.0
@@ -358,7 +442,7 @@ fun ERange(
 ) {
     val weight = rememberSaveable { mutableStateOf("80") }
     val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
-    val selectedCapacityIndex = rememberSaveable { mutableStateOf(0) }
+    val selectedCapacityIndex = rememberSaveable { mutableIntStateOf(0) }
     val isDropDownExpanded = rememberSaveable { mutableStateOf(false) }
 
     Column(modifier.padding(10.dp)) {
