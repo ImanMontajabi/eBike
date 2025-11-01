@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
@@ -46,6 +47,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -123,6 +126,13 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                     DropdownMenuItem(
+                                        text = { Text("Ladestationen") },
+                                        onClick = {
+                                            navController.navigate("map")
+                                            menuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text("Info") },
                                         onClick = {
                                             navController.navigate("info")
@@ -140,6 +150,12 @@ class MainActivity : ComponentActivity() {
                                     Icon(
                                         Icons.Filled.PlayArrow,
                                         contentDescription = "Calculate",
+                                    )
+                                }
+                                IconButton(onClick = { navController.navigate("map")}) {
+                                    Icon(
+                                        Icons.Filled.LocationOn,
+                                        contentDescription = "Find Stations"
                                     )
                                 }
                                 IconButton(onClick = { navController.navigate("info") }) {
@@ -168,6 +184,10 @@ class MainActivity : ComponentActivity() {
                                 navController = navController,
                                 modifier = Modifier
                             )
+                        }
+
+                        composable("map") {
+                            MapScreen(modifier = Modifier)
                         }
 
                         composable(
@@ -233,26 +253,26 @@ fun CalculateButton(
 ) {
     val capacities = listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")
     val context = LocalContext.current
-        Button(
-            onClick = {
-                val w = weight.value.toDoubleOrNull() ?: 0.0
-                saveSharedPreference(context, "weight", w)
-                val capacityStr = capacities[selectedCapacityIndex.value].replace(" Wh", "")
-                val c = capacityStr.toDoubleOrNull() ?: 0.0
-                val r = range(w, c, isFlatTourProfile.value)
+    Button(
+        onClick = {
+            val w = weight.value.toDoubleOrNull() ?: 0.0
+            saveSharedPreference(context, "weight", w)
+            val capacityStr = capacities[selectedCapacityIndex.value].replace(" Wh", "")
+            val c = capacityStr.toDoubleOrNull() ?: 0.0
+            val r = range(w, c, isFlatTourProfile.value)
 //                val resultString = "Your range (weight = $w, capacity = $c, flat = ${isFlatTourProfile.value}) is: %.3f km.".format(r)
 //                navController.navigate("result/${resultString.replace("/", "-")}")
-                navController.navigate("result/${r.toFloat()}")
-            },
-            modifier = Modifier.padding(10.dp)
-        ) {
-            Text(
-                "Calculate",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.inversePrimary
-            )
-        }
+            navController.navigate("result/${r.toFloat()}")
+        },
+        modifier = Modifier.padding(10.dp)
+    ) {
+        Text(
+            "Calculate",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.inversePrimary
+        )
     }
+}
 
 @Composable
 fun SwitchBox(title: String, isFlatTourProfile: MutableState<Boolean>) {
@@ -551,4 +571,58 @@ fun loadSharedPreference(context: Context, name: String): Double {
     val readVal = gson.fromJson<Any>(json, type)
     val result: Double = if (readVal != null) readVal as Double else 70.0
     return result
+}
+
+fun saveStringPreferences(context: Context, name: String, value: String) {
+    val sharedPreferences = context.getSharedPreferences(
+        "shared preferences", MODE_PRIVATE
+    )
+    val editor = sharedPreferences.edit()
+    editor.putString(name, value)
+    editor.apply()
+}
+
+fun loadStringPreferences(context: Context, name: String, defaultValue: String): String {
+    val sharedPreferences = context.getSharedPreferences(
+        "shared preferences", MODE_PRIVATE
+    )
+    return sharedPreferences.getString(name, defaultValue) ?: defaultValue
+}
+
+@Composable
+fun MapScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val location = rememberSaveable {
+        mutableStateOf(loadStringPreferences(context, "last_location", "Osnabrück"))
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        AppHeader()
+        Spacer(Modifier.requiredHeight(40.dp))
+        OutlinedTextField(
+            value = location.value,
+            onValueChange = { location.value = it },
+            label = { Text("Your location") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(Modifier.requiredHeight(16.dp))
+        Button(onClick = {
+            saveStringPreferences(context, "last_location", location.value)
+            val searchString = "ebike ladestation in ${location.value}"
+            val gmmIntentUri = Uri.parse("geo:0,0?q=$searchString")
+            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+            context.startActivity(mapIntent)
+        }) {
+            Text(
+                "Seek",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.inversePrimary
+            )
+        }
+    }
 }
