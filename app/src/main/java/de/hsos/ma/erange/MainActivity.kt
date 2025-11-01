@@ -1,5 +1,7 @@
 package de.hsos.ma.erange
 
+import android.content.Context
+import android.content.Context.MODE_PRIVATE
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,25 +19,38 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -46,24 +61,13 @@ import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import de.hsos.ma.erange.ui.theme.ERangeTheme
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
+import java.lang.reflect.Type
 
 
 class MainActivity : ComponentActivity() {
@@ -74,8 +78,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             ERangeTheme {
                 val navController = rememberNavController()
-
                 var menuExpanded by remember { mutableStateOf(false) }
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val canNavigateBack = navBackStackEntry?.destination?.route != "home"
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -90,11 +95,13 @@ class MainActivity : ComponentActivity() {
                                 Text(stringResource(id = R.string.app_name))
                             },
                             navigationIcon = {
-                                IconButton(onClick = { navController.popBackStack() }) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back"
-                                    )
+                                if (canNavigateBack) {
+                                    IconButton(onClick = { navController.popBackStack() }) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Back"
+                                        )
+                                    }
                                 }
                             },
                             actions = {
@@ -152,8 +159,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable("home") {
                             ERange(
-                                modifier = Modifier,
-                                navController = navController
+                                navController = navController,
+                                modifier = Modifier
                             )
                         }
                         composable("info") {
@@ -166,11 +173,10 @@ class MainActivity : ComponentActivity() {
                         composable(
                             route = "result/{rangeResult}",
                             arguments = listOf(navArgument("rangeResult") {
-                                type = NavType.StringType
-                                nullable = true
+                                type = NavType.FloatType
                             })
                         ) { backStackEntry ->
-                            val result = backStackEntry.arguments?.getString("rangeResult")
+                            val result = backStackEntry.arguments?.getFloat("rangeResult")
 
                             ResultScreen(
                                 navController = navController,
@@ -226,14 +232,17 @@ fun CalculateButton(
     navController: NavController
 ) {
     val capacities = listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")
+    val context = LocalContext.current
         Button(
             onClick = {
                 val w = weight.value.toDoubleOrNull() ?: 0.0
+                saveSharedPreference(context, "weight", w)
                 val capacityStr = capacities[selectedCapacityIndex.value].replace(" Wh", "")
                 val c = capacityStr.toDoubleOrNull() ?: 0.0
                 val r = range(w, c, isFlatTourProfile.value)
-                val resultString = "Your range (weight = $w, capacity = $c, flat = ${isFlatTourProfile.value}) is: %.3f km.".format(r)
-                navController.navigate("result/${resultString.replace("/", "-")}")
+//                val resultString = "Your range (weight = $w, capacity = $c, flat = ${isFlatTourProfile.value}) is: %.3f km.".format(r)
+//                navController.navigate("result/${resultString.replace("/", "-")}")
+                navController.navigate("result/${r.toFloat()}")
             },
             modifier = Modifier.padding(10.dp)
         ) {
@@ -420,16 +429,22 @@ fun ERangeInfo(navController: NavController, modifier: Modifier = Modifier) {
 @Composable
 fun ResultScreen(
     navController: NavController,
-    rangeResult: String?,
+    rangeResult: Float?,
     modifier: Modifier = Modifier
 ) {
+    val output = if (rangeResult != null) {
+        "Your calculated range is: %.3f km.".format(rangeResult)
+    } else {
+        "No result calculated"
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         AppHeader()
         Spacer(Modifier.requiredHeight(40.dp))
-        RoundedOutputWindow(output = rangeResult ?: "No result calculated")
+        RoundedOutputWindow(output = output)
         Spacer(Modifier.requiredHeight(10.dp))
         BackToHomeButton(navController = navController)
     }
@@ -440,7 +455,10 @@ fun ERange(
     modifier: Modifier = Modifier,
     navController: NavController,
 ) {
-    val weight = rememberSaveable { mutableStateOf("80") }
+    val context = LocalContext.current
+    val weight = rememberSaveable {
+        mutableStateOf(loadSharedPreference(context, "weight").toString())
+    }
     val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
     val selectedCapacityIndex = rememberSaveable { mutableIntStateOf(0) }
     val isDropDownExpanded = rememberSaveable { mutableStateOf(false) }
@@ -489,6 +507,7 @@ fun ERange(
 }
 
 fun range(weight: Double, capacity: Double, isFlat: Boolean): Double {
+    if (weight == 0.0) return 0.0
     val consumption = 7.0
     val normWeight = 80.0
     var range = (capacity / consumption * (normWeight / weight))
@@ -507,4 +526,29 @@ fun ERangePreview() {
             navController = navController
         )
     }
+}
+
+fun saveSharedPreference(context: Context, name: String, doubleVal: Double) {
+    val sharedPreferences = context.getSharedPreferences(
+        "shared preferences", MODE_PRIVATE
+    )
+    val editor = sharedPreferences.edit()
+    val gson = Gson()
+    val json = gson.toJson(doubleVal)
+    editor.putString(name, json)
+    editor.apply()
+    val msg = String.format("'%s = %f' saved to preferences", name, doubleVal)
+}
+
+fun loadSharedPreference(context: Context, name: String): Double {
+    val sharedPreferences = context.getSharedPreferences(
+        "shared preferences", MODE_PRIVATE
+    )
+    val gson = Gson()
+    val json = sharedPreferences.getString(name, null)
+    // Read value (type safe)
+    val type: Type = object : TypeToken<Double?>() {}.type
+    val readVal = gson.fromJson<Any>(json, type)
+    val result: Double = if (readVal != null) readVal as Double else 70.0
+    return result
 }
