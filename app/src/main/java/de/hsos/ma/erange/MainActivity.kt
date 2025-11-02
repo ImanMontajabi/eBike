@@ -49,6 +49,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,7 +72,12 @@ import androidx.navigation.navArgument
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import de.hsos.ma.erange.ui.theme.ERangeTheme
+import java.io.IOException
 import java.lang.reflect.Type
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.jsoup.Jsoup
 
 
 class MainActivity : ComponentActivity() {
@@ -247,21 +254,25 @@ fun InputBox(title: String, txt: MutableState<String>) {
 @Composable
 fun CalculateButton(
     weight: MutableState<String>,
+    capacities: List<String>,
     selectedCapacityIndex: MutableState<Int>,
     isFlatTourProfile: MutableState<Boolean>,
     navController: NavController
 ) {
-    val capacities = listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")
     val context = LocalContext.current
     Button(
         onClick = {
             val w = weight.value.toDoubleOrNull() ?: 0.0
             saveSharedPreference(context, "weight", w)
-            val capacityStr = capacities[selectedCapacityIndex.value].replace(" Wh", "")
+
+            val capacityStr = if (selectedCapacityIndex.value in capacities.indices) {
+                capacities[selectedCapacityIndex.value].replace(" Wh", "")
+            } else {
+                "0"
+            }
+
             val c = capacityStr.toDoubleOrNull() ?: 0.0
             val r = range(w, c, isFlatTourProfile.value)
-//                val resultString = "Your range (weight = $w, capacity = $c, flat = ${isFlatTourProfile.value}) is: %.3f km.".format(r)
-//                navController.navigate("result/${resultString.replace("/", "-")}")
             navController.navigate("result/${r.toFloat()}")
         },
         modifier = Modifier.padding(10.dp)
@@ -307,11 +318,10 @@ fun SwitchBox(title: String, isFlatTourProfile: MutableState<Boolean>) {
 @Composable
 fun DropDownSelection(
     title: String,
+    capacities: List<String>,
     itemPosition: MutableState<Int>,
     isDropDownExpanded: MutableState<Boolean>
 ) {
-    val capacities = listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")
-
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -341,8 +351,13 @@ fun DropDownSelection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                val currentText = if (itemPosition.value in capacities.indices) {
+                    capacities[itemPosition.value]
+                } else {
+                    "Select Capacity"
+                }
                 Text(
-                    text = capacities[itemPosition.value],
+                    text = currentText,
                     style = MaterialTheme.typography.headlineMedium
                 )
                 Icon(
@@ -480,6 +495,9 @@ fun ERange(
         mutableStateOf(loadSharedPreference(context, "weight").toString())
     }
     val isFlatTourProfile = rememberSaveable { mutableStateOf(true) }
+
+    val scope = rememberCoroutineScope()
+    var capacities by remember { mutableStateOf(listOf("600 Wh", "620 Wh", "640 Wh", "660 Wh")) }
     val selectedCapacityIndex = rememberSaveable { mutableIntStateOf(0) }
     val isDropDownExpanded = rememberSaveable { mutableStateOf(false) }
 
@@ -491,9 +509,29 @@ fun ERange(
         Spacer(Modifier.requiredHeight(10.dp))
         DropDownSelection(
             "Battery capacity [Wh]: ",
+            capacities = capacities,
             itemPosition = selectedCapacityIndex,
             isDropDownExpanded = isDropDownExpanded
         )
+        Spacer(Modifier.requiredHeight(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Button(onClick = {
+                scope.launch {
+                    val fetchedList = fetchBatteryCapacities()
+                    if (fetchedList.isNotEmpty()) {
+                        capacities = fetchedList
+                        Toast.makeText(context, "Capacities updated from web!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Could not fetch data.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                Text("Fetch Capacities from Web")
+            }
+        }
         Spacer(Modifier.requiredHeight(10.dp))
         SwitchBox("Flat tour profile: ", isFlatTourProfile = isFlatTourProfile)
         Spacer(Modifier.requiredHeight(10.dp))
@@ -505,6 +543,7 @@ fun ERange(
         ) {
             CalculateButton(
                 weight,
+                capacities,
                 selectedCapacityIndex,
                 isFlatTourProfile,
                 navController
@@ -566,7 +605,6 @@ fun loadSharedPreference(context: Context, name: String): Double {
     )
     val gson = Gson()
     val json = sharedPreferences.getString(name, null)
-    // Read value (type safe)
     val type: Type = object : TypeToken<Double?>() {}.type
     val readVal = gson.fromJson<Any>(json, type)
     val result: Double = if (readVal != null) readVal as Double else 70.0
@@ -623,6 +661,40 @@ fun MapScreen(modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.inversePrimary
             )
+        }
+    }
+}
+
+suspend fun fetchBatteryCapacities(): List<String> {
+    return withContext(Dispatchers.IO) {
+        val capacitySet = mutableSetOf<String>()
+        try {
+            val doc = Jsoup.connect("https://www.fahrrad-xxl.de/beratung/e-bike/akku/")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36")
+                .ignoreHttpErrors(true)
+                .get()
+
+            val elements = doc.select("ul.text-list li strong")
+            val regex = Regex("(\\d+ Wh)")
+
+            for (element in elements) {
+                val text = element.text()
+                val matches = regex.findAll(text)
+
+                for (match in matches) {
+                    capacitySet.add(match.value)
+                }
+            }
+
+            if (capacitySet.isEmpty()) {
+                return@withContext listOf("500 Wh", "625 Wh", "750 Wh")
+            }
+
+            return@withContext capacitySet.toList().sorted()
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext listOf("500 Wh", "625 Wh", "750 Wh")
         }
     }
 }
